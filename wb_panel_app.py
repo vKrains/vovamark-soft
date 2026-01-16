@@ -317,14 +317,6 @@ if st.button("🗑️ Удалить поставку"):
 st.markdown("---")
 st.subheader("🛠️ Общие операции")
 
-# merge_script = f"merge_with_base/merge_with_base_{person_id}.py"
-# if st.button("🔗 Объединить с базой"):
-#     if os.path.exists(merge_script):
-#         result = subprocess.run([sys.executable, merge_script], capture_output=True, text=True)
-#         st.text_area("Результат скачивания", (result.stdout or '') + (result.stderr or ''), height=300)
-#     else:
-#         st.error(f"Скрипт {merge_script} не найден.")
-
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
@@ -337,33 +329,37 @@ with col1:
             st.error("Скрипт all_merge.py не найден.")
 
 with col2:
+    antimerge_krd = "antimerge_krasnodar.py"
     if st.button("❌ ANTIMMERGE (KRASNODAR)"):
-        if os.path.exists("antimerge_krasnodar.py"):
-            result = subprocess.run(["python", "antimerge_krasnodar.py"], capture_output=True, text=True)
+        if os.path.exists(antimerge_krd):
+            result = subprocess.run([sys.executable, antimerge_krd], capture_output=True, text=True)
             st.text_area("Результат ANTIMMERGE (KRASNODAR)", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error("Скрипт antimerge_krasnodar.py не найден.")
 
 with col3:
+    antimerge_msk = "antimerge_moscow.py"
     if st.button("❌ ANTIMMERGE (MOSCOW)"):
-        if os.path.exists("antimerge_moscow.py"):
-            result = subprocess.run(["python", "antimerge_moscow.py"], capture_output=True, text=True)
+        if os.path.exists(antimerge_msk):
+            result = subprocess.run([sys.executable, antimerge_msk], capture_output=True, text=True)
             st.text_area("Результат ANTIMMERGE (MOSCOW)", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error("Скрипт antimerge_moscow.py не найден.")
 
 with col4:
+    antimerge_kal = "antimerge_kal.py"
     if st.button("❌ ANTIMMERGE (KAL)"):
-        if os.path.exists("antimerge_kal.py"):
-            result = subprocess.run(["python", "antimerge_kal.py"], capture_output=True, text=True)
+        if os.path.exists(antimerge_kal):
+            result = subprocess.run([sys.executable, antimerge_kal], capture_output=True, text=True)
             st.text_area("Результат ANTIMMERGE (KAL)", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error("Скрипт antimerge_kal.py не найден.")
             
 with col5:
+    antimerge_ekb = "antimerge_ekb.py"
     if st.button("❌ ANTIMMERGE (EKB)"):
-        if os.path.exists("antimerge_ekb.py"):
-            result = subprocess.run(["python", "antimerge_ekb.py"], capture_output=True, text=True)
+        if os.path.exists(antimerge_ekb):
+            result = subprocess.run([sys.executable, antimerge_ekb], capture_output=True, text=True)
             st.text_area("Результат ANTIMMERGE (EKB)", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error("Скрипт antimerge_ekb.py не найден.")
