@@ -250,8 +250,8 @@ if st.button("📥 Получить заказы НЕ КУПИЛИ"):
 merge_script = f"merge_with_base/merge_with_base_{person_id}.py"
 if st.button("🔗 Объединить с базой"):
     if os.path.exists(merge_script):
-        result = subprocess.run(["python", merge_script], capture_output=True, text=True)
-        st.text_area("Результат объединения с базой", (result.stdout or '') + (result.stderr or ''), height=300)
+        result = subprocess.run([sys.executable, merge_script], capture_output=True, text=True)
+        st.text_area("Результат скачивания", (result.stdout or '') + (result.stderr or ''), height=300)
     else:
         st.error(f"Скрипт {merge_script} не найден.")
 
