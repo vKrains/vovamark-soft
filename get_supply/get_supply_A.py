@@ -17,7 +17,6 @@ API_A = st.secrets.get("API_A", "")
 HEADERS = {'Authorization': API_A}
 
 URL = 'https://marketplace-api.wildberries.ru/api/v3/supplies'
-
 def _must(name: str) -> str:
     v = os.environ.get(name, "").strip()
     if not v:
@@ -53,7 +52,6 @@ def download_df_xlsx(key: str) -> pd.DataFrame:
     obj = s3_client().get_object(Bucket=s3_bucket(), Key=key)
     data = obj["Body"].read()
     return pd.read_excel(BytesIO(data))
-
 
 # Параметры запроса
 params = {
@@ -108,10 +106,10 @@ else:
         df_sorted = df_sorted.drop(columns=['Дата сортировки'])
 
         # Сохраняем
-        out_key = os.environ.get("ACTIVE_SUPPLIES_KEY", "supplies/active/A.xlsx")
+        out_key = os.environ.get("ORDERS_KEY", "Списки поставок/активные_поставки_на_сборке_A.xlsx")
         upload_df_xlsx(df_sorted, out_key)
         print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
 
-        print(f"\nГотово! Файл сохранён как: {output_file}")
+        print(f"\nГотово! Файл сохранён как")
 
 
