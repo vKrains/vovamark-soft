@@ -1,27 +1,23 @@
-import requests
+# -*- coding: utf-8 -*-
 import os
 import sys
-import boto3
 from io import BytesIO
-import streamlit as st
-import pandas as pd
 from datetime import datetime
-from pathlib import Path 
+
+import requests
+import pandas as pd
+import boto3
 from botocore.client import Config
+import streamlit as st
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.append(str(PROJECT_ROOT))
 
-API_A = st.secrets.get("API_A", "")
-
-HEADERS = {'Authorization': API_A}
-
-URL = 'https://marketplace-api.wildberries.ru/api/v3/supplies'
+# ---------- helpers (как в get_orders_A) ----------
 def _must(name: str) -> str:
     v = os.environ.get(name, "").strip()
     if not v:
         raise RuntimeError(f"Missing env var: {name}")
     return v
+
 
 def s3_client():
     return boto3.client(
@@ -33,8 +29,10 @@ def s3_client():
         config=Config(signature_version="s3v4"),
     )
 
+
 def s3_bucket() -> str:
     return _must("YC_S3_BUCKET")
+
 
 def upload_df_xlsx(df: pd.DataFrame, key: str):
     buf = BytesIO()
@@ -48,68 +46,109 @@ def upload_df_xlsx(df: pd.DataFrame, key: str):
         ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
-def download_df_xlsx(key: str) -> pd.DataFrame:
-    obj = s3_client().get_object(Bucket=s3_bucket(), Key=key)
-    data = obj["Body"].read()
-    return pd.read_excel(BytesIO(data))
 
-# Параметры запроса
-params = {
-    "limit": 1000,
-    "next": 0
-}
+# ---------- WB supplies ----------
+WB_URL = "https://marketplace-api.wildberries.ru/api/v3/supplies"
 
-# Запрос
-response = requests.get(URL, headers=HEADERS, params=params)
-response.raise_for_status()
-data = response.json()
 
-supplies = data.get('supplies', [])
+def _parse_dt(created_at_raw: str):
+    """
+    WB обычно отдаёт createdAt в формате 2024-01-01T12:34:56Z
+    Возвращаем (строка, dt_obj) для сортировки
+    """
+    if not created_at_raw:
+        return "", None
+    try:
+        dt_obj = datetime.strptime(created_at_raw, "%Y-%m-%dT%H:%M:%SZ")
+        return dt_obj.strftime("%Y-%m-%d %H:%M:%S"), dt_obj
+    except Exception:
+        return created_at_raw, None
 
-if not supplies:
-    print("Нет поставок.")
-else:
+
+def main():
+    # 1) API ключ — как в get_orders_A: из st.secrets
+    api_key = (st.secrets.get("API_A", "") or "").strip()
+    if not api_key:
+        raise RuntimeError("Missing st.secrets['API_A']")
+
+    headers = {"Authorization": api_key}
+
+    # 2) ключ выгрузки — ТОЛЬКО из env, который прокидывает панель
+    out_key = os.environ.get("ACTIVE_SUPPLIES_KEY", "supplies/active/A.xlsx").strip()
+    if not out_key:
+        raise RuntimeError("ACTIVE_SUPPLIES_KEY is empty")
+
+    # 3) читаем supplies (на всякий — пагинация)
+    limit = 1000
+    next_val = 0
+    all_supplies = []
+
+    while True:
+        params = {"limit": limit, "next": next_val}
+        resp = requests.get(WB_URL, headers=headers, params=params, timeout=60)
+
+        # если WB вернул ошибку — покажем тело (это важно для отладки)
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"WB error {resp.status_code}: {resp.text}"
+            )
+
+        payload = resp.json() or {}
+        supplies = payload.get("supplies", []) or []
+        all_supplies.extend(supplies)
+
+        # у WB бывает: next = 0 или next отсутствует, когда страниц больше нет
+        next_val = payload.get("next", 0)
+        if not next_val:
+            break
+
+    if not all_supplies:
+        # даже если нет поставок — лучше записать пустой файл, чтобы панель не падала
+        df_empty = pd.DataFrame(columns=[
+            "ID поставки", "Номер поставки", "Дата создания", "Завершена", "Тип груза"
+        ])
+        upload_df_xlsx(df_empty, out_key)
+        print(f"OK: empty saved to s3://{s3_bucket()}/{out_key}")
+        return
+
+    # 4) приводим к таблице
     rows = []
-    for s in supplies:
-        created_at_raw = s.get('createdAt')
-        created_at = ''
-        dt_obj = None
-        if created_at_raw:
-            try:
-                dt_obj = datetime.strptime(created_at_raw, '%Y-%m-%dT%H:%M:%SZ')
-                created_at = dt_obj.strftime('%Y-%m-%d %H:%M:%S')
-            except:
-                created_at = created_at_raw
+    for s in all_supplies:
+        created_at_raw = s.get("createdAt", "")
+        created_at_str, dt_obj = _parse_dt(created_at_raw)
 
         rows.append({
-            'ID поставки': s.get('id', ''),
-            'Номер поставки': s.get('name', ''),
-            'Дата создания': created_at,
-            'Дата сортировки': dt_obj,
-            'Завершена': s.get('done', False),
-            'Тип груза': s.get('cargoType', ''),
+            "ID поставки": s.get("id", ""),
+            "Номер поставки": s.get("name", ""),
+            "Дата создания": created_at_str,
+            "_dt_sort": dt_obj,
+            "Завершена": bool(s.get("done", False)),
+            "Тип груза": s.get("cargoType", ""),
         })
 
-    # Преобразуем в DataFrame
     df = pd.DataFrame(rows)
 
-    # Оставляем только НЕ завершенные
-    df_filtered = df[df['Завершена'] == False]
+    # 5) только активные (не завершенные), как у тебя было
+    df_active = df[df["Завершена"] == False].copy()
 
-    if df_filtered.empty:
-        print("Нет активных поставок (На сборке).")
-    else:
-        # Сортировка по дате (новые сверху)
-        df_sorted = df_filtered.sort_values(by='Дата сортировки', ascending=False)
+    # если активных нет — тоже запишем пустую (но с колонками)
+    if df_active.empty:
+        df_active = df.head(0).drop(columns=["_dt_sort"])
 
-        # Убираем вспомогательный столбец
-        df_sorted = df_sorted.drop(columns=['Дата сортировки'])
+    # сортировка (новые сверху)
+    if "_dt_sort" in df_active.columns:
+        df_active = df_active.sort_values(by="_dt_sort", ascending=False).drop(columns=["_dt_sort"])
 
-        # Сохраняем
-        out_key = os.environ.get("ACTIVE_SUPPLIES_KEY", "supplies/active/A.xlsx")
-        upload_df_xlsx(df_sorted, out_key)
-        print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
-
-        print(f"\nГотово! Файл сохранён как")
+    # 6) сохраняем в S3
+    upload_df_xlsx(df_active, out_key)
+    print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
+    print(f"Rows: {len(df_active)}")
 
 
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        # важно: печатаем ошибку в stdout/stderr, чтобы панель показала лог
+        print(f"ERROR: {e}", file=sys.stderr)
+        raise
