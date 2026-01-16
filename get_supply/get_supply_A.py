@@ -106,7 +106,7 @@ else:
         df_sorted = df_sorted.drop(columns=['Дата сортировки'])
 
         # Сохраняем
-        out_key = os.environ.get("ORDERS_KEY", "Списки поставок/активные_поставки_на_сборке_A.xlsx")
+        out_key = os.environ.get("ACTIVE_SUPPLIES_KEY", "supplies/active/A.xlsx")
         upload_df_xlsx(df_sorted, out_key)
         print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
 
