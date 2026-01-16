@@ -9,7 +9,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-from config import API_C
+import streamlit as st
+API_C = st.secrets.get("API_C", "")
 
 CREATE_SUPPLY_URL = "https://marketplace-api.wildberries.ru/api/v3/supplies"
 HEADERS = {"Authorization": API_C}

@@ -7,7 +7,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-from config import API_E
+import streamlit as st
+API_E = st.secrets.get("API_E", "")
 
 # Параметры
 folder_path = r"D:/Софт/скрипты и аутпутс/Листы подбора/E"  # Путь к папке

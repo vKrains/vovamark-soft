@@ -8,12 +8,13 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-from config import API_А
+import streamlit as st
+API_F = st.secrets.get("API_F", "")
 
 BASE_URL = "https://marketplace-api.wildberries.ru/api/v3/supplies"
 
 def main():
-    if not API_А or API_А.startswith("<"):
+    if not API_F or API_F.startswith("<"):
         print("Ошибка: не задан API-ключ (переменная окружения WB_API_KEY).")
         sys.exit(1)
 
@@ -23,7 +24,7 @@ def main():
 
     supply_id = sys.argv[1].strip()
     url = f"{BASE_URL}/{supply_id}"
-    headers = {"Authorization": API_А}
+    headers = {"Authorization": API_F}
 
     try:
         resp = requests.delete(url, headers=headers, timeout=30)

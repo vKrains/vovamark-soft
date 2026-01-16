@@ -6,7 +6,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-from config import API_D
+import streamlit as st
+API_D = st.secrets.get("API_D", "")
 
 
 HEADERS = {

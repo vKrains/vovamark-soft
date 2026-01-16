@@ -32,6 +32,14 @@ import streamlit as st
 import subprocess, sys
 from pathlib import Path
 
+API_A = st.secrets.get("API_A", "")
+API_B = st.secrets.get("API_B", "")
+API_C = st.secrets.get("API_C", "")
+API_D = st.secrets.get("API_D", "")
+API_E = st.secrets.get("API_E", "")
+API_F = st.secrets.get("API_F", "")
+
+
 # --- Простая авторизация ---
 #if "authenticated" not in st.session_state:
 #    st.session_state.authenticated = False
@@ -410,15 +418,6 @@ if st.button("⚙️ Запустить обработку листов подб
             st.error(f"Ошибка при запуске скрипта: {ex}")
 
 #-----------------------------------------------СРОК ГОДНОСТИ------------------------------------------------------------------------------
-from config import (
-    API_A,
-    API_B,
-    API_C,
-    API_D,
-    API_E,
-    API_F
-)
-
 # Словарь с API-ключами по кабинетам
 api_keys = {
     "A": API_A,
@@ -560,17 +559,6 @@ else:
 
 
 #--------------------------------------САЙДБАР КОНЕЦ--------------------------------------------------------------------------------------
-
-from config import (
-    API_A,
-    API_B,
-    API_C,
-    API_D,
-    API_E,
-    API_F
-)
-
-
 st.markdown("---")
 st.subheader("🚚 Передать поставку в доставку")
 
