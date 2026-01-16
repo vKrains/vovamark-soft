@@ -111,7 +111,7 @@ if "active_supplies" not in st.session_state:
     st.session_state.active_supplies = {}  # dict: person_id -> DataFrame | None
 
 #----------------------------------------КОНЕЦ САЙДБАР НАСТРОЙКИ------------------------------------------------------------------------------
-
+import sys
 
 # --- Первичные действия ---
 st.subheader("📥 Первичные действия")
@@ -120,7 +120,7 @@ st.subheader("📥 Первичные действия")
 download_script = f"get_orders/get_orders_{person_id}.py"
 if st.button("📥 Скачать задания"):
     if os.path.exists(download_script):
-        result = subprocess.run(["python", download_script], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, download_script], capture_output=True, text=True)
         st.text_area("Результат скачивания", (result.stdout or '') + (result.stderr or ''), height=300)
     else:
         st.error(f"Скрипт {download_script} не найден.")
