@@ -364,6 +364,121 @@ with col5:
         else:
             st.error("Скрипт antimerge_ekb.py не найден.")
 
+#------------------------------------------------------DOWNLOAD-------------------------------------------------------------------------------------
+# ---------- S3 helpers ----------
+def s3_list_keys(prefix: str) -> list[str]:
+    client = _s3()
+    bucket = _s3_bucket()
+    keys = []
+    token = None
+
+    while True:
+        kwargs = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": 1000}
+        if token:
+            kwargs["ContinuationToken"] = token
+
+        resp = client.list_objects_v2(**kwargs)
+        for obj in resp.get("Contents", []) or []:
+            k = obj.get("Key", "")
+            if k and not k.endswith("/"):
+                keys.append(k)
+
+        if resp.get("IsTruncated"):
+            token = resp.get("NextContinuationToken")
+        else:
+            break
+
+    return keys
+
+
+def s3_get_bytes(key: str) -> bytes:
+    obj = _s3().get_object(Bucket=_s3_bucket(), Key=key)
+    return obj["Body"].read()
+
+
+def s3_put_bytes(key: str, data: bytes, content_type: str):
+    _s3().put_object(
+        Bucket=_s3_bucket(),
+        Key=key,
+        Body=data,
+        ContentType=content_type,
+    )
+
+
+st.markdown("---")
+st.subheader("📦 orders/готовые — скачать НА_ЗАКУПКУ и загрузить задания")
+
+READY_PREFIX = "orders/готовые/"
+
+st.markdown("### 1) Скачать файлы НА_ЗАКУПКУ_*.xlsx")
+
+try:
+    all_ready = s3_list_keys(READY_PREFIX)
+    zakupku_keys = [
+        k for k in all_ready
+        if os.path.basename(k).startswith("НА_ЗАКУПКУ_") and k.lower().endswith(".xlsx")
+    ]
+
+    if not zakupku_keys:
+        st.info("В папке orders/готовые нет файлов НА_ЗАКУПКУ_*.xlsx")
+    else:
+        for key in sorted(zakupku_keys):
+            fname = os.path.basename(key)
+
+            data = s3_get_bytes(key)
+            st.download_button(
+                label=f"⬇️ Скачать {fname}",
+                data=data,
+                file_name=fname,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key=f"dl_{key}",
+            )
+
+except Exception as ex:
+    st.error(f"Ошибка чтения списка файлов из S3: {ex}")
+
+st.markdown("### 2) Загрузить задания в orders/готовые (проверка названия файла)")
+
+ALLOWED_UPLOAD_NAMES = {
+    "ЗАДАНИЯ_МОСКВА.xlsx",
+    "ЗАДАНИЯ_КРАСНОДАР.xlsx",
+    "ЗАДАНИЯ_КАЛЕДИНО.xlsx",
+    "ЗАДАНИЯ_ЕКБ.xlsx",
+}
+
+uploaded = st.file_uploader(
+    "Выберите файл .xlsx для загрузки",
+    type=["xlsx"],
+    accept_multiple_files=False
+)
+
+if uploaded is not None:
+    filename = uploaded.name
+
+    if filename not in ALLOWED_UPLOAD_NAMES:
+        st.error(
+            "Неверное имя файла.\n\n"
+            "Разрешены только:\n- " + "\n- ".join(sorted(ALLOWED_UPLOAD_NAMES))
+        )
+    else:
+        try:
+            dest_key = f"{READY_PREFIX}{filename}"
+            file_bytes = uploaded.getvalue()
+
+            s3_put_bytes(
+                key=dest_key,
+                data=file_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+            st.success(f"✅ Загружено в S3: {dest_key}")
+
+            st.rerun()
+
+        except Exception as ex:
+            st.error(f"Ошибка загрузки в S3: {ex}")
+
 #-----------------------------------------------КРАСНОДАРСКИЕ ОПЕРАЦИИ------------------------------------------------------------------------------
 st.markdown("---")
 st.subheader("📄 FBS КРАСНОДАР")
