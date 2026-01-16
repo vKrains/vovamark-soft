@@ -9,6 +9,8 @@ sys.path.append(str(PROJECT_ROOT))
 
 import streamlit as st
 API_A = st.secrets.get("API_A", "")
+KEY_ID = st.secrets.get("KEY_ID", "")
+SECRET = st.secrets.get("SECRET", "")
 
 HEADERS = {'Authorization': API_A}
 URL = 'https://marketplace-api.wildberries.ru/api/v3/orders/new'
@@ -21,9 +23,8 @@ import boto3
 s3 = boto3.client(
     "s3",
     endpoint_url="https://storage.yandexcloud.net",
-    aws_access_key_id="KEY_ID",
-    aws_secret_access_key="SECRET",
-    region_name="ru-central1",
+    aws_access_key_id=KEY_ID.strip(),
+    aws_secret_access_key=SECRET.strip(),
 )
 
 s3.put_object(Bucket="wb-soft", Key="test/ok.txt", Body=b"ok")
