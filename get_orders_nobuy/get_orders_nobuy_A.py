@@ -98,7 +98,7 @@ def main():
     df['Продавец'] = 'ОБЩИЙ'
     df['Группа'] = 'A'
 
-    out_key = os.environ.get("WB_API_KEY", OUTPUT_FILE)
+    out_key = os.environ.get("NOBUY_ORDERS_KEY", OUTPUT_FILE)
     upload_df_xlsx(df, out_key)
     print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
 

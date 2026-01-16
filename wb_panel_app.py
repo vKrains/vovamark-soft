@@ -215,7 +215,7 @@ if st.button("📥 Получить заказы НЕ КУПИЛИ"):
         "YC_S3_REGION": str(st.secrets.get("YC_S3_REGION", "ru-central1")),
 
         # если в nobuy-скрипте нужен ключ WB:
-        "WB_API_KEY": str(st.secrets.get(f"orders/Выходы A/поставки_не_купили_{person_id}.xlsx", "")),
+        "NOBUY_ORDERS_KEY": f"orders/Выходы A/поставки_не_купили_{person_id}.xlsx"
     })
 
     try:
