@@ -1,39 +1,96 @@
+# -*- coding: utf-8 -*-
+import os
+import sys
+from io import BytesIO
+
 import pandas as pd
+import boto3
+from botocore.client import Config
 
-# Пути к файлам
-tasks_file = 'D:/Софт/скрипты и аутпутс/Выходы F/задания_F.xlsx'
-supply_file = 'D:/Софт/скрипты и аутпутс/Выходы F/поставки_не_купили_F.xlsx'
-database_file = 'D:/Софт/База данных/База данных.xlsx'
-output_file = 'D:/Софт/скрипты и аутпутс/выходы/задания_с_названием_и_фото_F.xlsx'
+TASKS_KEY    = "orders/F/задания_F.xlsx"
+SUPPLY_KEY   = "orders/Выходы F/поставки_не_купили_F.xlsx"
+DATABASE_KEY = "База данных/База данных.xlsx"
+OUTPUT_KEY   = "orders/выходы/задания_с_названием_и_фото_F.xlsx"
 
-# 1. Загрузка таблиц заданий и заказов из поставки
-tasks_df = pd.read_excel(tasks_file)
-supply_df = pd.read_excel(supply_file)
+def _must(name: str) -> str:
+    v = (os.environ.get(name) or "").strip()
+    if not v:
+        raise RuntimeError(f"Missing env var: {name}")
+    return v
 
-# 2. Объединяем эти две таблицы
-combined_tasks = pd.concat([tasks_df, supply_df], ignore_index=True)
+def s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=_must("YC_S3_ENDPOINT"),
+        aws_access_key_id=_must("YC_S3_KEY_ID"),
+        aws_secret_access_key=_must("YC_S3_SECRET"),
+        region_name=(os.environ.get("YC_S3_REGION") or "").strip() or None,
+        config=Config(signature_version="s3v4"),
+    )
 
-# 3. Загрузка базы данных (с пропуском первых строк)
-db_df = pd.read_excel(database_file, header=0)
+def s3_bucket() -> str:
+    return _must("YC_S3_BUCKET")
 
-# 4. Оставляем нужные столбцы и переименуем "Баркод" → "Штрихкод"
-db_trimmed = db_df[['Баркод', 'Наименование', 'Фото']].copy()
-db_trimmed = db_trimmed.rename(columns={'Баркод': 'Штрихкод'})
+def s3_read_excel(key: str) -> pd.DataFrame:
+    obj = s3_client().get_object(Bucket=s3_bucket(), Key=key)
+    data = obj["Body"].read()
+    return pd.read_excel(BytesIO(data))
 
-# 5. Удалим дубликаты по Штрихкоду в базе
-db_trimmed = db_trimmed.drop_duplicates(subset='Штрихкод')
+def s3_write_excel(df: pd.DataFrame, key: str):
+    buf = BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        df.to_excel(w, index=False)
+    buf.seek(0)
 
-# 6. Приведение Штрихкодов к строкам без пробелов
-combined_tasks['Штрихкод'] = combined_tasks['Штрихкод'].astype(str).str.strip()
-db_trimmed['Штрихкод'] = db_trimmed['Штрихкод'].astype(str).str.strip()
+    s3_client().put_object(
+        Bucket=s3_bucket(),
+        Key=key,
+        Body=buf.getvalue(),
+        ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
-# 7. Объединение с базой по Штрихкоду
-merged_df = combined_tasks.merge(db_trimmed, on='Штрихкод', how='left')
+def main():
+    tasks_df = s3_read_excel(TASKS_KEY)
+    supply_df = s3_read_excel(SUPPLY_KEY)
 
-# 8. Сортировка по ПВЗ и артикулу
-merged_df.sort_values(by=['Пункт выдачи', 'Артикул продавца'], inplace=True)
+    combined_tasks = pd.concat([tasks_df, supply_df], ignore_index=True)
 
-# 9. Сохранение результата
-merged_df.to_excel(output_file, index=False)
+    db_df = s3_read_excel(DATABASE_KEY)
 
-print(f"Готово! Файл сохранён как: {output_file}")
+    need_cols = ["Баркод", "Наименование", "Фото"]
+    missing = [c for c in need_cols if c not in db_df.columns]
+    if missing:
+        raise RuntimeError(f"В базе нет колонок: {missing}")
+
+    db_trimmed = db_df[need_cols].copy()
+    db_trimmed = db_trimmed.rename(columns={"Баркод": "Штрихкод"})
+
+    db_trimmed["Штрихкод"] = db_trimmed["Штрихкод"].astype(str).str.strip()
+    db_trimmed = db_trimmed.drop_duplicates(subset="Штрихкод")
+
+    if "Штрихкод" not in combined_tasks.columns:
+        raise RuntimeError("В таблице заданий/НЕ КУПИЛИ нет колонки 'Штрихкод'")
+
+    combined_tasks["Штрихкод"] = combined_tasks["Штрихкод"].astype(str).str.strip()
+
+    merged_df = combined_tasks.merge(db_trimmed, on="Штрихкод", how="left")
+
+    sort_cols = []
+    if "Пункт выдачи" in merged_df.columns:
+        sort_cols.append("Пункт выдачи")
+    if "Артикул продавца" in merged_df.columns:
+        sort_cols.append("Артикул продавца")
+    if sort_cols:
+        merged_df.sort_values(by=sort_cols, inplace=True)
+
+    s3_write_excel(merged_df, OUTPUT_KEY)
+
+    print(f"OK: saved to s3://{s3_bucket()}/{OUTPUT_KEY}")
+    print(f"Rows: {len(merged_df)}")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        raise
