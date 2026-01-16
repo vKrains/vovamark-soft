@@ -1,18 +1,59 @@
 import requests
+import os
+import sys
+import boto3
+from io import BytesIO
+import streamlit as st
 import pandas as pd
 from datetime import datetime
-
-import sys, os
 from pathlib import Path 
+from botocore.client import Config
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-import streamlit as st
 API_A = st.secrets.get("API_A", "")
 
 HEADERS = {'Authorization': API_A}
 
 URL = 'https://marketplace-api.wildberries.ru/api/v3/supplies'
+
+def _must(name: str) -> str:
+    v = os.environ.get(name, "").strip()
+    if not v:
+        raise RuntimeError(f"Missing env var: {name}")
+    return v
+
+def s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=_must("YC_S3_ENDPOINT"),
+        aws_access_key_id=_must("YC_S3_KEY_ID"),
+        aws_secret_access_key=_must("YC_S3_SECRET"),
+        region_name=os.environ.get("YC_S3_REGION", "").strip() or None,
+        config=Config(signature_version="s3v4"),
+    )
+
+def s3_bucket() -> str:
+    return _must("YC_S3_BUCKET")
+
+def upload_df_xlsx(df: pd.DataFrame, key: str):
+    buf = BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        df.to_excel(w, index=False)
+    buf.seek(0)
+    s3_client().put_object(
+        Bucket=s3_bucket(),
+        Key=key,
+        Body=buf.getvalue(),
+        ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+def download_df_xlsx(key: str) -> pd.DataFrame:
+    obj = s3_client().get_object(Bucket=s3_bucket(), Key=key)
+    data = obj["Body"].read()
+    return pd.read_excel(BytesIO(data))
+
 
 # Параметры запроса
 params = {
@@ -67,8 +108,10 @@ else:
         df_sorted = df_sorted.drop(columns=['Дата сортировки'])
 
         # Сохраняем
-        output_file = 'D:/Софт/скрипты и аутпутс/Списки поставок/активные_поставки_на_сборке_лисица.xlsx'
-        df_sorted.to_excel(output_file, index=False)
+        out_key = os.environ.get("ACTIVE_SUPPLIES_KEY", "supplies/active/A.xlsx")
+        upload_df_xlsx(df_sorted, out_key)
+        print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
+
         print(f"\nГотово! Файл сохранён как: {output_file}")
 
 

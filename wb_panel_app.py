@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
+import re
+import boto3
+import base64
+import requests
+import subprocess
+from io import BytesIO
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+from pathlib import Path
+from botocore.client import Config
 
 sys.path.append(os.path.dirname(__file__))
 
@@ -19,18 +30,7 @@ if os.name == "nt":  # если Windows
     except Exception:
         pass
 
-import streamlit as st
-import subprocess
-import os
-import pandas as pd
-import base64
-import requests
-from datetime import datetime
-import re
 
-import streamlit as st
-import subprocess, sys
-from pathlib import Path
 
 API_A = st.secrets.get("API_A", "")
 API_B = st.secrets.get("API_B", "")
@@ -55,6 +55,23 @@ API_F = st.secrets.get("API_F", "")
 #            st.error("Неверный пароль")
 #    st.stop()
 
+def _s3():
+    return boto3.client(
+        "s3",
+        endpoint_url=st.secrets["YC_S3_ENDPOINT"],
+        aws_access_key_id=st.secrets["YC_S3_KEY_ID"],
+        aws_secret_access_key=st.secrets["YC_S3_SECRET"],
+        region_name=st.secrets.get("YC_S3_REGION", None),
+        config=Config(signature_version="s3v4"),
+    )
+
+def _s3_bucket():
+    return st.secrets["YC_S3_BUCKET"]
+
+def s3_read_excel(key: str) -> pd.DataFrame:
+    obj = _s3().get_object(Bucket=_s3_bucket(), Key=key)
+    data = obj["Body"].read()
+    return pd.read_excel(BytesIO(data))
 
 barcodes_to_log = []
 
@@ -79,31 +96,48 @@ person_id = people[selected_person]
 
 
 # --- Хелперы и состояние для активных поставок ---
-def _excel_path_for(pid: str) -> str:
-    return f"D:/Софт/скрипты и аутпутс/Списки поставок/активные_поставки_на_сборке_{pid}.xlsx"
+def _excel_key_for(pid: str) -> str:
+    return f"supplies/active/{pid}.xlsx"
 
 def _script_for(pid: str) -> str:
     return f"get_supply/get_supply_{pid}.py"
 
 def load_active_supplies_for(pid: str):
-    """Запускает скрипт кабинета (если есть) и возвращает DataFrame из Excel (или None)."""
+    """Запускает скрипт кабинета (если есть) и возвращает DataFrame из S3 (или None)."""
     script = _script_for(pid)
-    xlsx = _excel_path_for(pid)
+    s3_key = _excel_key_for(pid)
 
-    # Пытаемся выполнить генерацию файла (если скрипт существует)
+    env = dict(os.environ)
+    env.update({
+        "YC_S3_ENDPOINT": str(st.secrets["YC_S3_ENDPOINT"]),
+        "YC_S3_BUCKET": str(st.secrets["YC_S3_BUCKET"]),
+        "YC_S3_KEY_ID": str(st.secrets["YC_S3_KEY_ID"]),
+        "YC_S3_SECRET": str(st.secrets["YC_S3_SECRET"]),
+        "YC_S3_REGION": str(st.secrets.get("YC_S3_REGION", "ru-central1")),
+        "WB_API_KEY": str(st.secrets.get(f"WB_API_{pid}", "")),
+        "ACTIVE_SUPPLIES_KEY": s3_key,
+    })
+
     if os.path.exists(script):
         try:
-            subprocess.run(["python", script], capture_output=True, text=True, timeout=120)
-        except Exception:
-            pass  # не валим приложение, просто попробуем прочитать, если файл уже есть
+            r = subprocess.run(
+                [sys.executable, script],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+            if r.returncode != 0:
+                st.sidebar.error(f"Ошибка get_supply_{pid}: {r.stderr or r.stdout}")
+        except Exception as ex:
+            st.sidebar.error(f"Ошибка запуска get_supply_{pid}: {ex}")
 
-    # Читаем Excel, если он появился/существует
-    if os.path.exists(xlsx):
-        try:
-            return pd.read_excel(xlsx)
-        except Exception:
-            return None
-    return None
+    try:
+        return s3_read_excel(s3_key)
+    except Exception as ex:
+        st.sidebar.warning(f"Не удалось прочитать active supplies из S3 для {pid}: {ex}")
+        return None
+
 
 
 # Инициализация общего кэша
