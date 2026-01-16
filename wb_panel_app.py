@@ -291,7 +291,7 @@ delete_supply_id = st.text_input("Введите ID поставки для уд
 delete_script_personal = f"delete_supply/delete_supply_{person_id}.py"
 delete_script_generic = "delete_supply/delete_supply.py"
 delete_script = delete_script_personal if os.path.exists(delete_script_personal) else delete_script_generic
-
+  
 if st.button("🗑️ Удалить поставку"):
     sid = (delete_supply_id or "").strip()
     if not sid:
@@ -317,12 +317,21 @@ if st.button("🗑️ Удалить поставку"):
 st.markdown("---")
 st.subheader("🛠️ Общие операции")
 
+# merge_script = f"merge_with_base/merge_with_base_{person_id}.py"
+# if st.button("🔗 Объединить с базой"):
+#     if os.path.exists(merge_script):
+#         result = subprocess.run([sys.executable, merge_script], capture_output=True, text=True)
+#         st.text_area("Результат скачивания", (result.stdout or '') + (result.stderr or ''), height=300)
+#     else:
+#         st.error(f"Скрипт {merge_script} не найден.")
+
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
+    all_merge = "all_merge.py"
     if st.button("⚙️ MERGE (общий)"):
-        if os.path.exists("all_merge.py"):
-            result = subprocess.run(["python", "all_merge.py"], capture_output=True, text=True)
+        if os.path.exists(all_merge):
+            result = subprocess.run([sys.executable, all_merge], capture_output=True, text=True)
             st.text_area("Результат MERGE", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error("Скрипт all_merge.py не найден.")
