@@ -24,10 +24,6 @@ ORDER_IDS_URL = (
     'api/marketplace/v3/supplies/{supplyId}/order-ids'
 )
 
-OUTPUT_FILE = (
-    'D:/Софт/скрипты и аутпутс/Выходы D/поставки_не_купили_D.xlsx'
-)
-
 def _must(name: str) -> str:
     v = os.environ.get(name, "").strip()
     if not v:
