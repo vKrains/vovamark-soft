@@ -16,6 +16,18 @@ URL = 'https://marketplace-api.wildberries.ru/api/v3/orders/new'
 out_dir = Path("/tmp/Выходы A")
 out_dir.mkdir(parents=True, exist_ok=True)
 
+import boto3
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url="https://storage.yandexcloud.net",
+    aws_access_key_id="KEY_ID",
+    aws_secret_access_key="SECRET",
+    region_name="ru-central1",
+)
+
+s3.put_object(Bucket="wb-soft", Key="test/ok.txt", Body=b"ok")
+
 # === ПРЕФИКСЫ К НАЗВАНИЯМ ===
 PREFIX_TO_SUPPLY = {
     'TAB': 'ТАБРИС',
