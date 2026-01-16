@@ -1,4 +1,5 @@
 import requests
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 import sys, os
@@ -10,10 +11,7 @@ from botocore.client import Config
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-import streamlit as st
 API_A = st.secrets.get("API_A", "")
-KEY_ID = st.secrets.get("YC_S3_KEY_ID", "")
-SECRET = st.secrets.get("YC_S3_SECRET", "")
 
 HEADERS = {'Authorization': API_A}
 URL = 'https://marketplace-api.wildberries.ru/api/v3/orders/new'
@@ -54,9 +52,6 @@ def download_df_xlsx(key: str) -> pd.DataFrame:
     data = obj["Body"].read()
     return pd.read_excel(BytesIO(data))
 
-
-
-# === ПРЕФИКСЫ К НАЗВАНИЯМ ===
 PREFIX_TO_SUPPLY = {
     'TAB': 'ТАБРИС',
     'TBRS': 'ТАБРИС',
@@ -96,7 +91,6 @@ def get_magazin_by_article(article):
             return PREFIX_TO_SUPPLY[prefix]
     return ''
 
-# === ЗАПРОС СБОРОЧНЫХ ЗАДАНИЙ ===
 response = requests.get(URL, headers=HEADERS)
 orders = response.json().get('orders', [])
 
@@ -123,7 +117,6 @@ for o in orders:
         'id': o.get('id', '')
     })
 
-# === СОХРАНЕНИЕ В EXCEL ===
 if data:
     df = pd.DataFrame(data)
     df['Продавец'] = 'ОБЩИЙ'
@@ -132,6 +125,6 @@ if data:
     upload_df_xlsx(df, out_key)
     print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
 
-    print("Упрощённые данные сохранены в 'D:/Софт/скрипты и аутпутс/Выходы A/задания_A.xlsx'")
+    print("Данные на облаке в папке orders/A'")
 else:
     print("Нет новых заданий.")

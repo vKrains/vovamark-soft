@@ -1,19 +1,57 @@
 import requests
+import streamlit as st
 import pandas as pd
 from datetime import datetime
-
 import sys, os
-from pathlib import Path 
+from pathlib import Path
+from io import BytesIO
+import boto3
+from botocore.client import Config
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-import streamlit as st
 API_F = st.secrets.get("API_F", "")
 
 HEADERS = {'Authorization': API_F}
 URL = 'https://marketplace-api.wildberries.ru/api/v3/orders/new'
 
-# === ПРЕФИКСЫ К НАЗВАНИЯМ ===
+def _must(name: str) -> str:
+    v = os.environ.get(name, "").strip()
+    if not v:
+        raise RuntimeError(f"Missing env var: {name}")
+    return v
+
+def s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=_must("YC_S3_ENDPOINT"),
+        aws_access_key_id=_must("YC_S3_KEY_ID"),
+        aws_secret_access_key=_must("YC_S3_SECRET"),
+        region_name=os.environ.get("YC_S3_REGION", "").strip() or None,
+        config=Config(signature_version="s3v4"),
+    )
+
+def s3_bucket() -> str:
+    return _must("YC_S3_BUCKET")
+
+def upload_df_xlsx(df: pd.DataFrame, key: str):
+    buf = BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        df.to_excel(w, index=False)
+    buf.seek(0)
+    s3_client().put_object(
+        Bucket=s3_bucket(),
+        Key=key,
+        Body=buf.getvalue(),
+        ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+def download_df_xlsx(key: str) -> pd.DataFrame:
+    obj = s3_client().get_object(Bucket=s3_bucket(), Key=key)
+    data = obj["Body"].read()
+    return pd.read_excel(BytesIO(data))
+
 PREFIX_TO_SUPPLY = {
     'TAB': 'ТАБРИС',
     'TBRS': 'ТАБРИС',
@@ -54,7 +92,6 @@ def get_magazin_by_article(article):
             return PREFIX_TO_SUPPLY[prefix]
     return ''
 
-# === ЗАПРОС СБОРОЧНЫХ ЗАДАНИЙ ===
 response = requests.get(URL, headers=HEADERS)
 orders = response.json().get('orders', [])
 
@@ -81,12 +118,14 @@ for o in orders:
         'id': o.get('id', '')
     })
 
-# === СОХРАНЕНИЕ В EXCEL ===
 if data:
     df = pd.DataFrame(data)
     df['Продавец'] = 'Я ЧОРНИ'
     df['Группа'] = 'F'
-    df.to_excel('D:/Софт/скрипты и аутпутс/Выходы F/задания_F.xlsx', index=False)
-    print("Упрощённые данные сохранены в 'D:/Софт/скрипты и аутпутс/Выходы F/задания_F.xlsx'")
+    out_key = os.environ.get("ORDERS_KEY", "orders/F/задания_F.xlsx")
+    upload_df_xlsx(df, out_key)
+    print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
+
+    print("Данные на облаке в папке orders/F'")
 else:
     print("Нет новых заданий.")
