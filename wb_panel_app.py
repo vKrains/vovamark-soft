@@ -491,7 +491,7 @@ for label, script_template in standard_actions.items():
     if st.button(label):
         script_name = script_template.format(person_id)
         if os.path.exists(script_name):
-            result = subprocess.run(["python", script_name], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, script_name], capture_output=True, text=True)
             st.text_area(f"Результат: {label}", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error(f"Скрипт {script_name} не найден.")
@@ -508,7 +508,7 @@ for label, script_template in moscow_actions.items():
     if st.button(label):
         script_name = script_template.format(person_id)
         if os.path.exists(script_name):
-            result = subprocess.run(["python", script_name], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, script_name], capture_output=True, text=True)
             st.text_area(f"Результат: {label}", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error(f"Скрипт {script_name} не найден.")
@@ -525,7 +525,7 @@ for label, script_template in moscow_actions.items():
     if st.button(label):
         script_name = script_template.format(person_id)
         if os.path.exists(script_name):
-            result = subprocess.run(["python", script_name], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, script_name], capture_output=True, text=True)
             st.text_area(f"Результат: {label}", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error(f"Скрипт {script_name} не найден.")
@@ -542,7 +542,7 @@ for label, script_template in moscow_actions.items():
     if st.button(label):
         script_name = script_template.format(person_id)
         if os.path.exists(script_name):
-            result = subprocess.run(["python", script_name], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, script_name], capture_output=True, text=True)
             st.text_area(f"Результат: {label}", (result.stdout or '') + (result.stderr or ''), height=300)
         else:
             st.error(f"Скрипт {script_name} не найден.")
