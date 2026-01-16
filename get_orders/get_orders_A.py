@@ -9,8 +9,8 @@ sys.path.append(str(PROJECT_ROOT))
 
 import streamlit as st
 API_A = st.secrets.get("API_A", "")
-KEY_ID = st.secrets.get("KEY_ID", "")
-SECRET = st.secrets.get("SECRET", "")
+KEY_ID = st.secrets.get("YC_S3_KEY_ID", "")
+SECRET = st.secrets.get("YC_S3_SECRET", "")
 
 HEADERS = {'Authorization': API_A}
 URL = 'https://marketplace-api.wildberries.ru/api/v3/orders/new'
