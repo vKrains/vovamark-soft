@@ -13,6 +13,9 @@ API_A = st.secrets.get("API_A", "")
 HEADERS = {'Authorization': API_A}
 URL = 'https://marketplace-api.wildberries.ru/api/v3/orders/new'
 
+out_dir = Path("/tmp/Выходы A")
+out_dir.mkdir(parents=True, exist_ok=True)
+
 # === ПРЕФИКСЫ К НАЗВАНИЯМ ===
 PREFIX_TO_SUPPLY = {
     'TAB': 'ТАБРИС',
@@ -85,7 +88,7 @@ if data:
     df = pd.DataFrame(data)
     df['Продавец'] = 'ОБЩИЙ'
     df['Группа'] = 'A'
-    df.to_excel('D:/Софт/скрипты и аутпутс/Выходы A/задания_A.xlsx', index=False)
+    df.to_excel(out_dir / "задания_A.xlsx", index=False)
     print("Упрощённые данные сохранены в 'D:/Софт/скрипты и аутпутс/Выходы A/задания_A.xlsx'")
 else:
     print("Нет новых заданий.")
