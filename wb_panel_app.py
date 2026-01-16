@@ -161,53 +161,36 @@ if st.button("📥 Скачать задания"):
 
 #----------------------------------------------НЕ КУПИЛИ/СКРИПТ------------------------------------------------------------------------------
 
-
 nobuy_orders_script = f"get_orders_nobuy/get_orders_nobuy_{person_id}.py"
 
 if st.button("📥 Получить заказы НЕ КУПИЛИ"):
 
-    # 1) Таблица активных поставок
     df_selected = st.session_state.active_supplies.get(person_id)
 
     if df_selected is None or df_selected.empty:
         st.error("Нет данных активных поставок. Сначала обновите таблицы в сайдбаре.")
         st.stop()
 
-    # 2) Проверка наличия столбца с названием поставки
     if "Номер поставки" not in df_selected.columns:
         st.error("В таблице нет столбца 'Номер поставки'. Проверьте формат Excel.")
         st.stop()
 
-    # 3) Фильтр поставок "НЕ КУПИЛИ"
-    mask = df_selected["Номер поставки"].astype(str).str.contains(
-        "НЕ КУПИЛИ", case=False, na=False
-    )
+    mask = df_selected["Номер поставки"].astype(str).str.contains("НЕ КУПИЛИ", case=False, na=False)
     rows = df_selected.loc[mask]
 
     if rows.empty:
         st.error("В активных поставках не найдено 'НЕ КУПИЛИ'.")
         st.stop()
 
-    # 4) Поиск столбца с ID поставки
-    candidate_id_cols = [
-        "id", "ID", "Id", "Айди", "ID поставки", "Айди поставки"
-    ]
+    candidate_id_cols = ["id", "ID", "Id", "Айди", "ID поставки", "Айди поставки"]
     id_col = next((c for c in candidate_id_cols if c in rows.columns), None)
 
     if not id_col:
-        st.error(
-            "В таблице не найден столбец с ID поставки "
-            "(ожидались: id / ID / Айди / ID поставки)."
-        )
+        st.error("В таблице не найден столбец с ID поставки (ожидались: id / ID / Айди / ID поставки).")
         st.stop()
 
-    # 5) Сбор ВСЕХ ID поставок
-    supply_ids = (
-        rows[id_col]
-        .astype(str)
-        .str.strip()
-        .tolist()
-    )
+    supply_ids = rows[id_col].astype(str).str.strip().tolist()
+    supply_ids = [x for x in supply_ids if x and x.lower() != "nan"]
 
     if not supply_ids:
         st.error("Не удалось получить ID поставок.")
@@ -215,31 +198,51 @@ if st.button("📥 Получить заказы НЕ КУПИЛИ"):
 
     st.info(f"Найдено поставок 'НЕ КУПИЛИ': {len(supply_ids)}")
 
-    # 6) Проверка наличия скрипта
     if not os.path.exists(nobuy_orders_script):
         st.error(f"Скрипт {nobuy_orders_script} не найден.")
         st.stop()
 
-    # 7) Запуск нижнего скрипта с аргументами
-    result = subprocess.run(
-        ["python", nobuy_orders_script, *supply_ids],
-        capture_output=True,
-        text=True
-    )
+    # ВАЖНО: запускаем тем же интерпретатором, что и Streamlit
+    cmd = [sys.executable, nobuy_orders_script, *supply_ids]
 
-    # 8) Вывод результата
+    # ВАЖНО: прокидываем env (как ты уже делаешь для get_supply) :contentReference[oaicite:1]{index=1}
+    env = dict(os.environ)
+    env.update({
+        "YC_S3_ENDPOINT": str(st.secrets["YC_S3_ENDPOINT"]),
+        "YC_S3_BUCKET": str(st.secrets["YC_S3_BUCKET"]),
+        "YC_S3_KEY_ID": str(st.secrets["YC_S3_KEY_ID"]),
+        "YC_S3_SECRET": str(st.secrets["YC_S3_SECRET"]),
+        "YC_S3_REGION": str(st.secrets.get("YC_S3_REGION", "ru-central1")),
+
+        # если в nobuy-скрипте нужен ключ WB:
+        "WB_API_KEY": str(st.secrets.get(f"orders/Выходы A/поставки_не_купили_{person_id}.xlsx", "")),
+    })
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        st.error("Скрипт выполнялся слишком долго и был остановлен (timeout).")
+        st.stop()
+    except Exception as ex:
+        st.error(f"Ошибка запуска subprocess: {ex}")
+        st.stop()
+
     if result.returncode == 0:
         st.success("Сбор заказов из 'НЕ КУПИЛИ' выполнен успешно.")
     else:
-        st.error("Ошибка при выполнении скрипта.")
+        st.error(f"Ошибка при выполнении скрипта (код {result.returncode}).")
 
     st.text_area(
         "Логи",
-        (result.stdout or "") + (result.stderr or ""),
+        (result.stdout or "") + ("\n" + result.stderr if result.stderr else ""),
         height=300
     )
-
-
 #-----------------------------------------------НЕ КУПИЛИ КОНЕЦ------------------------------------------------------------------------------
 
 
