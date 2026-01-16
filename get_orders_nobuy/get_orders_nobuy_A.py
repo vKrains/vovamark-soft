@@ -60,8 +60,6 @@ def download_df_xlsx(key: str) -> pd.DataFrame:
     data = obj["Body"].read()
     return pd.read_excel(BytesIO(data))
 
-
-
 def get_order_ids(supply_id: str) -> list[int]:
     resp = requests.get(
         ORDER_IDS_URL.format(supplyId=supply_id),
@@ -69,7 +67,6 @@ def get_order_ids(supply_id: str) -> list[int]:
     )
     resp.raise_for_status()
     return resp.json().get('orderIds', [])
-
 
 def main():
     supply_ids = sys.argv[1:]
@@ -101,10 +98,10 @@ def main():
     df['Продавец'] = 'ОБЩИЙ'
     df['Группа'] = 'A'
 
-    out_key = os.environ.get("ORDERS_KEY", OUTPUT_FILE)
+    out_key = os.environ.get("WB_API_KEY", OUTPUT_FILE)
     upload_df_xlsx(df, out_key)
     print(f"OK: saved to s3://{s3_bucket()}/{out_key}")
-    
+
 
     print(f'Сохранено {len(df)} ID → {OUTPUT_FILE}')
 
